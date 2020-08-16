@@ -7,6 +7,12 @@
 # De edgelist en nodelist worden bewaard in de working directory
 # onder de naam Edgelist.csv en Nodelist.csv
 
+# De edgelist is een lijst van twitter-accounts en @mentions uit de tweet 
+# Daarbij ook de frequentie van de gebruikte hashtags, zoekwoorden en actieve periode's. 
+
+# De nodelist is een lijst van twitter-accounts, het gemiddelde aantal 
+# views, influence en followers. 
+
 # Het script bestaat uit tien onderdelen: 
 
 #   1. Libraries laden
@@ -20,9 +26,9 @@
 #   9. Edgelist 
 #  10. Nodelist
 
-# ------------------
+# ------------------------------
 # 1. LIBRARIES LADEN
-# -------------------
+# ------------------------------
 
 # Installeer (eenmalig) onderstaande packages. 
 
@@ -72,6 +78,11 @@ var_delimiter <- ";"
 # Hoeveel hashtags wil je meenemen (default = 20)? 
 var_aantalHashtags <- 20
 
+li_z_woord <- c("innovatie", "cluster", "gemeente", "philips")
+
+#Wil je de som van het aantal hashtags of de max (default = max)? 
+var_aggregeerNaar <- "max" 
+
 # De binwidth staat nu standaard op 7 (7 dagen - een week). Je kunt dit getal naar believe aanpassen. 
 # Maak je het groter, dan krijg je minder kolommen, maak je het kleiner, dan krijg je meer kolommen. 
 
@@ -83,15 +94,14 @@ var_aantalHashtags <- 20
 var_bin <- 7 
 
 # Vul de zoekwoorden die je wilt gebruiken in. Zet elk woord tussen aanhalingstekens, 
-# gescheiden door komma's. 
+# gescheiden door komma's. Je kunt zelf kiezen hoeveel zoekwoorden je gebruikt. 
 
-li_z_woord <- c("innovatie", "cluster", "gemeente", "philips")
 
-#Wil je de som van het aantal hashtags of de max (default = max)? 
-var_aggregeerNaar <- "sum" 
+
+
 
 # ------------------------------
-# 2. DATA INLEZEN
+# 3. DATA INLEZEN
 # ------------------------------
 
 # Zet de working directory naar je eigen Working directory. 
@@ -109,7 +119,7 @@ df_cm_raw <- read_delim(var_data, delim = var_delimiter)
 # Dus als de dataset zowel tweets als retweets bevat, gaat het resultaat over het totaal. 
 
 # ------------------------------
-# 2. HASHTAGS EXTRAHEREN
+# 4. HASHTAGS EXTRAHEREN
 # ------------------------------
 
 # Het doel is allereerst om de de twintig meest voorkomende hastags te selecteren. 
@@ -215,7 +225,7 @@ for (i in seq_along(li_h_woord)) {
     }
 
 # ------------------------------
-# 3. ZOEKWOORDEN
+# 5. ZOEKWOORDEN
 # ------------------------------
 
 # De basis voor de zoekwoorden is bovenin gemaakt. 
@@ -244,7 +254,7 @@ for (i in seq_along(li_z_woord)) {
 # Combine vecotrs. 
 
 # ------------------------------
-# 4. ACTIEVE PERIODE
+# 6. ACTIEVE PERIODE
 # ------------------------------
 
 # Omzetten van datum van een string naar een datum. 
@@ -302,7 +312,7 @@ f_colClean <- function(x){ colnames(x) <- gsub("df_cm_raw_", "p_", colnames(x));
 df_cm_raw <- f_colClean(df_cm_raw) 
 
 # ------------------------------
-# 5. MAKEN VAN SOURCE
+# 7. MAKEN VAN SOURCE
 # ------------------------------
 
 # Maak variabe source (deze vervangt de oorspronkelijke variabele source, maar die doet toch niks)
@@ -312,7 +322,7 @@ df_cm_raw$source = df_cm_raw$author
 df_cm_raw$source <- tolower(df_cm_raw$source)
 
 # ------------------------------
-# 6. MAKEN VAN TARGET 
+# 8. MAKEN VAN TARGET 
 # ------------------------------
 
 # Het maken van Target is een ingewikkelder verhaal. 
@@ -368,7 +378,7 @@ df_cm_raw <- separate(df_cm_raw, mention, sep=",", into=c(var_mentionKolommen))
 # (anders verliezen we wellicht cruciale informatie in het ruwe databestand)
 
 # ------------------------------
-# 7. EDGELIST
+# 9. EDGELIST
 # ------------------------------
 
 # In deze stap gaan we van een brede dataset naar een lange dataset. 
@@ -427,9 +437,13 @@ df_EdgelistSubset <- df_Edgelist[,var_colsEdges]
 df_EdgelistAggr <- aggregate(. ~ source+target, data = df_EdgelistSubset, 
                              FUN = var_aggregeerNaar)
 
+# @Gerrit, wat als je nou verschillende functies zou willen toepassen op verschillende kolommen? 
+
+# @Gerrit, hier gaat toch nog wat mis. In df_EdgelistAggr zitten nog dubbelingen en ik begrijp niet waarom. # drsjangroen en _smallingerland komt bijvoorbeeld twee keer voor. Waarom? Staat daar [spatie]_smallingerland? 
+
 # Vervang h_ door # 
-# f_zetHashtagTerug <- function(x){ colnames(x) <- gsub("h_", "#", colnames(x)); x } 
-# df_EdgelistAggr <- f_zetHashtagTerug(df_EdgelistAggr) 
+f_zetHashtagTerug <- function(x){ colnames(x) <- gsub("h_", "#", colnames(x)); x } 
+df_EdgelistAggr <- f_zetHashtagTerug(df_EdgelistAggr) 
 
 # Vervang z_ door niks
 f_haalz_Weg <- function(x){ colnames(x) <- gsub("z_", "", colnames(x)); x } 
@@ -455,7 +469,7 @@ df_EdgelistAggr <- df_EdgelistAggr[c(var_move, setdiff(names(df_EdgelistAggr), v
 write.csv2(df_EdgelistAggr,'Edgelist.csv', row.names=FALSE)
 
 # ------------------------------
-# 8. MAKEN VAN NODELIST
+# 10. MAKEN VAN NODELIST
 # ------------------------------
 
 # Subset de variabelen die voor de nodelist nodig zijn. 
