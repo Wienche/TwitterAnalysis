@@ -13,18 +13,19 @@
 # De nodelist is een lijst van twitter-accounts, het gemiddelde aantal 
 # views, influence en followers. 
 
-# Het script bestaat uit tien onderdelen: 
+# Het script bestaat uit elf onderdelen: 
 
 #   1. Libraries laden
 #   2. Waarden van variabelen kiezen
 #   3. Data inlezen 
 #   4. Hashtags extraheren
 #   5. Zoekwoorden extraheren
-#   6. Timestamp
-#   7. Source 
-#   8. Target 
-#   9. Edgelist 
-#  10. Nodelist
+#   6. Wordcloud
+#   7. Timestamp
+#   8. Source 
+#   9. Target 
+#  10. Edgelist 
+#  11. Nodelist
 
 # ------------------------------
 # 1. LIBRARIES LADEN
@@ -32,22 +33,16 @@
 
 # Installeer (eenmalig) onderstaande packages. 
 
+# install.packages("tidyverse")
 # install.packages("lubridate")
-# install.packages("readr")
-# install.packages("dplyr")
-# install.packages("tidyr")
-# install.packages("ggplot2")
 # install.packages("dummies")
 # install.packages("stringr")
 # install.packages("stats")
 
 # Activeer de libraries als je een nieuwe R sessie start. 
 
+library(tidyverse)
 library(lubridate)
-library(readr)
-library(dplyr)
-library(tidyr)
-library(ggplot2)
 library(dummies)
 library(stringr)
 library(stats)
@@ -80,15 +75,12 @@ var_aantalHashtags <- 20
 
 li_z_woord <- c("innovatie", "cluster", "gemeente", "philips")
 
-#Wil je de som van het aantal hashtags of de max (default = max)? 
-var_aggregeerNaar <- "max" 
-
 # De binwidth staat nu standaard op 7 (7 dagen - een week). Je kunt dit getal naar believe aanpassen. 
 # Maak je het groter, dan krijg je minder kolommen, maak je het kleiner, dan krijg je meer kolommen. 
 
 # Afhankelijk van de tijdspanne van de dataset stel je de binwidth in. Een vuistregel: 
 # - Bevat je dataset meerdere jaren -> kies 30 (per maand -> Je krijgt 1 kolom per maand)
-# - Bevat je daraset ongeveer een jaar -> kies 7 (per week -> Je krijgt 52 kolommen) 
+# - Bevat je dataset ongeveer een jaar -> kies 7 (per week -> Je krijgt 52 kolommen) 
 # - Bevat je dataset ongeveer een mand -> kies 1 (per dag -> Je krijgt 30/31 kolommen)
 
 var_bin <- 7 
@@ -97,21 +89,17 @@ var_bin <- 7
 # gescheiden door komma's. Je kunt zelf kiezen hoeveel zoekwoorden je gebruikt. 
 
 
-
-
-
 # ------------------------------
 # 3. DATA INLEZEN
 # ------------------------------
 
-# Zet de working directory naar je eigen Working directory. 
-setwd(var_workingDirectory)
+# Zet de working directory naar je eigen Working directory 
+# (als je niet vanuit Github in een project werkt). 
+# setwd(var_workingDirectory)
 
 # Dit script gebruikt een Coosto Export (CSV) als uitgangspunt. 
 # De file heeft de naam Coosto_messages.csv en gebruikt ";" als separator. 
 # Zet het databestand in de subdirectory "data". 
-
-# df_cm_raw <- read_csv2(var_data)
 
 df_cm_raw <- read_delim(var_data, delim = var_delimiter)
 
@@ -125,13 +113,12 @@ df_cm_raw <- read_delim(var_data, delim = var_delimiter)
 # Het doel is allereerst om de de twintig meest voorkomende hastags te selecteren. 
 # Om dit te doen wordt de tekst van de tweet gekopierd naar een nieuwe werkvariable 'tweet'.
 # De werkvariabele wordt gebruikt om de originele data intact te laten. 
-# Deze werkvariabele 'tweet' wordt in de rest van het script gebruikt. 
 # In 'tweet' worden de kapitalen vervangen door kleine letters. 
 # Dit om verschillen tussen hoofd- en kleine letters te elimineren. 
 # Vervolgens worden de woorden met een # uit de tweet geselecteerd. 
 # Al deze hashtags worden als losse items op een lijst geplaatst. 
 # De frequentie van alle hashtags wordt geteld.
-# Van de top worden dummy variabelen gemaakt. 
+# Van de top 20 (default) worden dummy variabelen gemaakt. 
 # Er wordt een wordcloud getekend van de meest voorkomende Hastags. 
 # Voor elke Hashtag wordt een dummy-variabele gemaakt. 
 
@@ -144,28 +131,22 @@ df_cm_raw$tweet <- tolower(df_cm_raw$tweet)
 # Selecteer de woorden die met een # beginnen. 
 df_cm_raw$hashtag <- str_extract_all(df_cm_raw$tweet, "#\\w+")
 
-# Zet de hastags in een dataframe. Wat gebeurt hier...?  
+# Zet de hastags in een dataframe.
 
 df_cm_raw$hashtag <- sapply(df_cm_raw$hashtag, 
-                            function(x) paste(x, collapse=", "))
+                            function(x) paste(x, collapse=","))
 
 # De woorden moeten nu bewaard worden ale losse woorden. Om dit te doen: 
-# Converteer character to string 
-li_hashtagstring <- toString(df_cm_raw$hashtag)
 
-# Vervang alle komma's en spaties
-li_hashtagstring <- gsub(",", " ", li_hashtagstring)
+li_hashtagstring <- df_cm_raw$hashtag %>%   
+  toString() %>%            # Converteer naar string
+  gsub("," , " ",.) %>%     # Vervang alle komma's en spaties
+  gsub("\\s+", "",.) %>%    # Vervang alle dubbele spaties
+  trimws()                  # Vervang spaties aan het begin (leading) 
+                            # en aan het einde (trailing) 
 
-# Vervang alle dubbele spaties
-li_hashtagstring <- gsub("\\s+", " ", li_hashtagstring)
-
-# Vervang spaties aan het begin (leading) en aan het einde (trailing) 
-li_hashtagstring <- trimws(li_hashtagstring)
-
-# Zet de hastags in een dataframe. Wat gebeurt hier...?  
-df_hashtags <- as_tibble(data.frame(li_hashtagstring=unlist(strsplit(as.character(li_hashtagstring)," "))))
-
-### VOOR ELKE RIJ SAMENVOEGEN IN LIJST MET VECTOREN. 
+# Zet de hastags in een dataframe.
+df_hashtags <- as_tibble(data.frame(li_hashtagstring=unlist(strsplit(as.character(li_hashtagstring),"#"))))
 
 df_hashtags <- cbind(df_hashtags, sum = '1')
 
@@ -185,44 +166,24 @@ df_hashtags_top <- as_tibble(top_n(df_hashtags, var_aantalHashtags))
 
 # j. Teken een bar chart
 ggplot(df_hashtags_top, aes(x = reorder(hashtag, aantal), y = aantal)) +
-    geom_col(color='azure2', fill='cyan3') + 
-    coord_flip()
+  geom_col(color='azure2', fill='cyan3') + 
+  coord_flip()
 
-# k. Teken een wordcloud
-
-# install.packages("ggwordcloud")
-library(ggwordcloud)
-
-# set.seed(3945786345) -> Nodig!? 
-ggplot(df_hashtags_top, aes(label = hashtag, size = aantal)) +
-    geom_text_wordcloud() +
-    theme_minimal()
-
-# Niet heel fraai. Allerlei instellingen kunnen hier nog worden gemaakt. 
-# Meer woorden, dichter op elkaar, horizontaal/verticaal etc. 
+ggsave("plot_hashtags.png")
 
 # l. Twintig kolommen met dummies van maken 
 
 # Komma's en hashtags verwijderen (anders worden de woorden niet gezien)
-df_cm_raw$hashtag <- gsub(",", "", df_cm_raw$hashtag)
-df_cm_raw$hashtag <- gsub("#", "", df_cm_raw$hashtag)
-df_hashtags_top$hashtag <- gsub("#", "", df_hashtags_top$hashtag)
+# df_cm_raw$hashtag <- gsub(",", "", df_cm_raw$hashtag)
+# df_cm_raw$hashtag <- gsub("#", "", df_cm_raw$hashtag)
 
-li_h_woord <- c(df_hashtags_top$hashtag)
-print(li_h_woord)
+# df_hashtags_top$hashtag <- gsub("#", "", df_hashtags_top$hashtag)
 
-for (i in seq_along(li_h_woord)) {
-    var_woord <- li_h_woord[i]
-    var_pattern <- paste0("\\b", var_woord, "\\b")
-    df_cm_raw <- mutate(df_cm_raw, !!var_woord := as.integer(str_detect(df_cm_raw$hashtag, var_pattern)))
-    }
-
-# Veranderen van de namen van de kolommen (zodat ik ze verderop makkelijker kan selecteren). 
-for (i in seq_along(li_h_woord)) {
-    var_oldname <- li_h_woord[i]
-    var_newname <- paste0("h_",var_oldname)
-        df_cm_raw <- rename(df_cm_raw, !!var_newname := !!var_oldname)
-    }
+for (i in seq_along(df_hashtags_top$hashtag)) {
+  var_woord <- df_hashtags_top$hashtag[i]
+  var_pattern <- paste0("\\b", var_woord, "\\b")
+  df_cm_raw <- mutate(df_cm_raw, !!paste0("h_",var_woord) := as.integer(str_detect(df_cm_raw$hashtag, var_pattern)))
+}
 
 # ------------------------------
 # 5. ZOEKWOORDEN
@@ -231,61 +192,72 @@ for (i in seq_along(li_h_woord)) {
 # De basis voor de zoekwoorden is bovenin gemaakt. 
 
 for (i in seq_along(li_z_woord)) {
-    var_woord <- li_z_woord[i]
-    var_pattern <- paste0("\\b", var_woord, "\\b")
-    df_cm_raw <- mutate(df_cm_raw, !!var_woord := as.integer(str_detect(df_cm_raw$tweet, var_pattern)))
+  var_woord <- li_z_woord[i]
+  var_pattern <- paste0("\\b", var_woord, "\\b")
+  df_cm_raw <- mutate(df_cm_raw, !!paste0("z_",var_woord) := as.integer(str_detect(df_cm_raw$tweet, var_pattern)))
 }
 
-# Veranderen van de namen van de kolommen (zodat ik ze verderop makkelijker kan selecteren). 
-for (i in seq_along(li_z_woord)) {
-    var_oldname <- li_z_woord[i]
-    var_newname <- paste0("z_",var_oldname)
-    df_cm_raw <- rename(df_cm_raw, !!var_newname := !!var_oldname)
-}
+# ------------------------------
+# 6 Wordcloud
+# ------------------------------
 
-# Punctuatie nog weghalen in tweet. 
-# Frequentie van zoekwoorden uitrekenen. 
-# Zoekwoorden en hashtags samenvoegen 
-# Tabel maken van 20 hashtags en zoekwoorden 
-# Cloud maken van zoekwoorden en hashtags 
+# install.packages("ggwordcloud")
+library(ggwordcloud)
 
-# Zet beide lijsten in een vector en voeg ze samen. 
-# Kan je maken uit de kolomnamen!! append...?! 
-# Combine vecotrs. 
+# Maak een tabel van aantallen zoekwoorden 
+
+# Subset raw met alleeen de zoekwoorden 
+
+# df_z_woord <- select(df_cm_raw, starts_with('z_'))
+
+# class(df_z_woord$z_cluster)
+
+
+
+# Samevoegen frequentie hashtags en zoekwoorden. 
+
+# set.seed(3945786345) 
+ggplot(df_hashtags_top, aes(label = hashtag, size = aantal)) +
+  geom_text_wordcloud() +
+  theme_minimal()
+
+# Niet heel fraai. Allerlei instellingen kunnen hier nog worden gemaakt. 
+# Meer woorden, dichter op elkaar, horizontaal/verticaal etc. 
 
 # ------------------------------
 # 6. ACTIEVE PERIODE
 # ------------------------------
 
-# Omzetten van datum van een string naar een datum. 
+# Omzetten van datum-tijd naar alleen datum. 
 df_cm_raw$datum <- as_date(df_cm_raw$date)
 
 # Verloop van de twitterverkeer met ggplot 
-
 ggplot(df_cm_raw, aes(x = datum))+
-    geom_histogram(binwidth=7, color='azure2', fill='cyan3')
+  geom_histogram(binwidth=var_bin, color='azure2', fill='cyan3')
 
-# De binwidth staat nu standaard op 7 (7 dagen - een week per kolom). Je kunt dit getal aanpassen naar believe. Maak je het groter, dan krijg je minder kolommen, maar je het kleiner, dan krijg je meer kolommen. 
-# Afhankelijk van de tijdspanne van de dataset stel je de binwidth in. 
-# Een vuistregel: 
-# - Meerdere jaren: Kies 30 (per maand -> Je krijgt 1 kolom per maand)
-# - Een jaar: Kies 7 (per week -> Je krijgt 52 kolommen) 
-# - Een maand: Kies 1 (per dag -> Je krijgt 30/31 kolommen)
+ggsave("plot_verloop.png")
 
 # Om de timestamp mee te kunnen nemen naar de edglist... (AANVULLEN)
 
 # Maak een variabele met de maand waarin een tweet verstuurd is. 
 # Maak een variabele voor elke maand in maandenset. 
-# Geef de waare 1 wanneer een tweet in een bepaalde maand is verstuurd. 
+# Geef de waarde 1 wanneer een tweet in een bepaalde maand is verstuurd. 
 # (en de waarde 0 als dat niet het geval is) 
 
 # Extract jaar en maand uit de datum
-df_cm_raw$jaar <- year(df_cm_raw$date)
-df_cm_raw$maand <- month(df_cm_raw$date)
-df_cm_raw$dag <- day(df_cm_raw$date)
+# df_cm_raw$jaar <- year(df_cm_raw$date)
+# df_cm_raw$maand <- month(df_cm_raw$date)
+# df_cm_raw$dag <- day(df_cm_raw$date)
 
 # Voeg jaar en maand samen
-df_cm_raw$periode <- ((df_cm_raw$jaar*100) + df_cm_raw$maand)
+# df_cm_raw$periode <- ((df_cm_raw$jaar*100) + df_cm_raw$maand)
+
+df_cm_raw <- df_cm_raw %>% 
+  mutate(datum = as_date(date)) %>% 
+  mutate(jaar = year(date)) %>% 
+  mutate(maand = month(date)) %>% 
+  mutate(dag = day(date)) %>% 
+  mutate(periode = (jaar*100 + maand))
 
 # Moch je liever dag en maand als eenheid hebben, dan kun je onderstaande 
 # regel gebruiken in plaats van bovenstaande (sla die dan over door een # te plaatsen en haal de onderstaande # weg. 
@@ -296,20 +268,9 @@ df_cm_raw$periode <- ((df_cm_raw$jaar*100) + df_cm_raw$maand)
 
 df_cm_raw <- cbind(df_cm_raw, dummy(df_cm_raw$periode, sep="_"))
 
+# Verwijder de naam van de dataset uit de variabelenamen. 
 
-# GERRIT: 
-# Bovenstaande regel leidt tot de volgende error: 
-# Error message: 
-# Warning message:
-#    In model.matrix.default(~x - 1, model.frame(~x - 1), contrasts = FALSE) :
-#    non-list contrasts argument ignored
-
-# R: Toon warning niet!? Try... accept! Iets met TryCatch. Of Warning uitzetten. 
-
-#Verwijder de naam van de dataset uit de variabelenamen. 
-
-f_colClean <- function(x){ colnames(x) <- gsub("df_cm_raw_", "p_", colnames(x)); x } 
-df_cm_raw <- f_colClean(df_cm_raw) 
+colnames(df_cm_raw) <- gsub("df_cm_raw_", "p_", colnames(df_cm_raw))
 
 # ------------------------------
 # 7. MAKEN VAN SOURCE
@@ -351,7 +312,7 @@ df_cm_raw$source <- tolower(df_cm_raw$source)
 df_cm_raw$mention <- str_extract_all(df_cm_raw$tweet, "@\\w+")
 
 df_cm_raw$mention <- sapply(df_cm_raw$mention, 
-                            function(x) paste(x, collapse=", "))
+                            function(x) paste(x, collapse=","))
 
 # "@" verwijderen. 
 
@@ -389,17 +350,16 @@ df_cm_raw <- separate(df_cm_raw, mention, sep=",", into=c(var_mentionKolommen))
 # Maak het variabele voor de naam van de variabele met het hoogste aantal mentions. 
 var_hoogsteAantalMentions <- paste("Mention", var_maxAantalMentions)
 
+# Vervabg lege eerste @Mentions door NA. 
+df_cm_raw$`Mention 1`[df_cm_raw$`Mention 1` == ""] <- NA
+
 # Maak de edgelist. 
 df_Edgelist <- df_cm_raw %>%
-    gather (key = "mention", 
-            value = "target", 
-            na.rm = TRUE, 
-            c(`Mention 1`:var_hoogsteAantalMentions))
+  gather (key = "mention", 
+          value = "target", 
+          na.rm = TRUE, 
+          c(`Mention 1`:var_hoogsteAantalMentions))
 
-# Verwijderen van tweets zonder @Mentions (target is leeg). 
-df_Edgelist <- df_Edgelist[-which(df_Edgelist$target == ""), ]
-
-# ***
 # Aggregeren van de edgelist 
 
 # Om te aggregeren zijn numerieke variabelen nodig. 
@@ -419,8 +379,8 @@ li_variabelen <- as.list(li_variabelen)
 
 # Maak numerieke variabelen van de subset van hashtags, zoekwoorden en timestamps. 
 for (i in li_variabelen) {
-    df_Edgelist[,i] <- as.numeric(df_Edgelist[,i])
-    }
+  df_Edgelist[,i] <- as.numeric(df_Edgelist[,i])
+}
 
 # Subset source, target en alle variabelen de Hashtags, Zoekwoorden en perioden. 
 
@@ -432,14 +392,14 @@ li_variabelen <- c(li_variabelen, "target")
 var_colsEdges <- match(li_variabelen, names(df_Edgelist))
 df_EdgelistSubset <- df_Edgelist[,var_colsEdges] 
 
-# Aggregeer naar de combinatie source en target, tel weight en sommeer de overige variabelen. 
+# Maak een numerieke teller voor gewicht
+df_EdgelistSubset <- cbind(df_EdgelistSubset, weight = '1')
+df_EdgelistSubset$weight <- as.numeric(df_EdgelistSubset$weight)
+  
+# Aggregeer naar de combinatie source en target en sommeer de overige variabelen. 
 
 df_EdgelistAggr <- aggregate(. ~ source+target, data = df_EdgelistSubset, 
-                             FUN = var_aggregeerNaar)
-
-# @Gerrit, wat als je nou verschillende functies zou willen toepassen op verschillende kolommen? 
-
-# @Gerrit, hier gaat toch nog wat mis. In df_EdgelistAggr zitten nog dubbelingen en ik begrijp niet waarom. # drsjangroen en _smallingerland komt bijvoorbeeld twee keer voor. Waarom? Staat daar [spatie]_smallingerland? 
+                             FUN = sum)
 
 # Vervang h_ door # 
 f_zetHashtagTerug <- function(x){ colnames(x) <- gsub("h_", "#", colnames(x)); x } 
@@ -476,7 +436,7 @@ write.csv2(df_EdgelistAggr,'Edgelist.csv', row.names=FALSE)
 
 li_nodeVariabelen <- c("source", "views", "influence", "followers")
 
-# Subset de dataframe naar alleen source, target en hashtags, zoekwoorden en perioden
+# Subset de dataframe naar alleen source, views, influence en followers
 var_colsNodes <- match(li_nodeVariabelen, names(df_Edgelist))
 df_NodelistSubset <- df_Edgelist[,var_colsNodes] 
 
@@ -485,11 +445,19 @@ df_NodelistSubset <- df_Edgelist[,var_colsNodes]
 df_NodelistAggr <- aggregate(. ~ source, data = df_NodelistSubset, 
                              FUN = mean)
 
+df_NLA_V <- aggregate(views ~ source, data = df_NodelistSubset, 
+                             FUN = sum)
+df_NLA_I <- aggregate(influence ~ source, data = df_NodelistSubset, 
+                      FUN = mean)
+df_NLA_F <- aggregate(followers ~ source, data = df_NodelistSubset, 
+                      FUN = mean)
+df_NLA <- full_join(df_NLA_V, df_NLA_I, by="source")
+df_NLA <- full_join(df_NLA, df_NLA_F, by="source")
+
 # Verander de kolomnaam van source naar id 
 names(df_NodelistAggr)[names(df_NodelistAggr) == "source"] <- "Id"
 
 # Bewaren van de Edglist als .csv bestand. 
 
 write.csv(df_NodelistAggr,'Nodelist.csv')
-
 
