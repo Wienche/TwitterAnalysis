@@ -1,3 +1,4 @@
+
 # ------------------------------
 # INTRODUCTIE
 # ------------------------------
@@ -20,12 +21,11 @@
 #   3. Data inlezen 
 #   4. Hashtags extraheren
 #   5. Zoekwoorden extraheren
-#   6. Wordcloud
-#   7. Timestamp
-#   8. Source 
-#   9. Target 
-#  10. Edgelist 
-#  11. Nodelist
+#   6. Timestamp
+#   7. Source 
+#   8. Target 
+#   9. Edgelist 
+#  10. Nodelist
 
 # ------------------------------
 # 1. LIBRARIES LADEN
@@ -95,7 +95,8 @@ var_bin <- 7
 
 # Zet de working directory naar je eigen Working directory 
 # (als je niet vanuit Github in een project werkt). 
-# setwd(var_workingDirectory)
+
+setwd(var_workingDirectory)
 
 # Dit script gebruikt een Coosto Export (CSV) als uitgangspunt. 
 # De file heeft de naam Coosto_messages.csv en gebruikt ";" als separator. 
@@ -103,8 +104,11 @@ var_bin <- 7
 
 df_cm_raw <- read_delim(var_data, delim = var_delimiter)
 
+# Verwijder regels die geen inhoud hebben op "message text"
+df_cm_raw <- df_cm_raw[!is.na(df_cm_raw $'message text'),]
+
 # Alle bewerkingen hebben betrekking op de hele dataset. 
-# Dus als de dataset zowel tweets als retweets bevat, gaat het resultaat over het totaal. 
+# Dus als de dataset zowel tweets als retweets bevat, gaat het resultaat over het totaal.
 
 # ------------------------------
 # 4. HASHTAGS EXTRAHEREN
@@ -166,7 +170,8 @@ df_hashtags_top <- as_tibble(top_n(df_hashtags, var_aantalHashtags))
 
 # j. Teken een bar chart
 ggplot(df_hashtags_top, aes(x = reorder(hashtag, aantal), y = aantal)) +
-  geom_col(color='azure2', fill='cyan3') + 
+  geom_col(color='gray90', fill='#00968F') + 
+  labs(x="", y="Aantal keer genoemd") +
   coord_flip()
 
 ggsave("plot_hashtags.png")
@@ -198,33 +203,6 @@ for (i in seq_along(li_z_woord)) {
 }
 
 # ------------------------------
-# 6 Wordcloud
-# ------------------------------
-
-# install.packages("ggwordcloud")
-library(ggwordcloud)
-
-# Maak een tabel van aantallen zoekwoorden 
-
-# Subset raw met alleeen de zoekwoorden 
-
-# df_z_woord <- select(df_cm_raw, starts_with('z_'))
-
-# class(df_z_woord$z_cluster)
-
-
-
-# Samevoegen frequentie hashtags en zoekwoorden. 
-
-# set.seed(3945786345) 
-ggplot(df_hashtags_top, aes(label = hashtag, size = aantal)) +
-  geom_text_wordcloud() +
-  theme_minimal()
-
-# Niet heel fraai. Allerlei instellingen kunnen hier nog worden gemaakt. 
-# Meer woorden, dichter op elkaar, horizontaal/verticaal etc. 
-
-# ------------------------------
 # 6. ACTIEVE PERIODE
 # ------------------------------
 
@@ -233,7 +211,8 @@ df_cm_raw$datum <- as_date(df_cm_raw$date)
 
 # Verloop van de twitterverkeer met ggplot 
 ggplot(df_cm_raw, aes(x = datum))+
-  geom_histogram(binwidth=var_bin, color='azure2', fill='cyan3')
+  geom_histogram(binwidth=var_bin, color='gray90', fill='#00968F') +
+  labs(x="Tijd", y="Aantal tweets")
 
 ggsave("plot_verloop.png")
 
@@ -315,7 +294,6 @@ df_cm_raw$mention <- sapply(df_cm_raw$mention,
                             function(x) paste(x, collapse=","))
 
 # "@" verwijderen. 
-
 df_cm_raw$mention <- gsub("@", "", df_cm_raw$mention)
 
 # Tel het aantal komma's 
@@ -388,6 +366,9 @@ for (i in li_variabelen) {
 li_variabelen <- c(li_variabelen, "source")
 li_variabelen <- c(li_variabelen, "target")
 
+# Ook nog periode toevoegen 
+li_variabelen <- c(li_variabelen, "periode")
+
 # Subset de dataframe naar alleen source, target en hashtags, zoekwoorden en perioden
 var_colsEdges <- match(li_variabelen, names(df_Edgelist))
 df_EdgelistSubset <- df_Edgelist[,var_colsEdges] 
@@ -395,69 +376,141 @@ df_EdgelistSubset <- df_Edgelist[,var_colsEdges]
 # Maak een numerieke teller voor gewicht
 df_EdgelistSubset <- cbind(df_EdgelistSubset, weight = '1')
 df_EdgelistSubset$weight <- as.numeric(df_EdgelistSubset$weight)
-  
-# Aggregeer naar de combinatie source en target en sommeer de overige variabelen. 
 
-df_EdgelistAggr <- aggregate(. ~ source+target, data = df_EdgelistSubset, 
-                             FUN = sum)
+# Hier wordt alsvast een lijst gemaakt 
+# van variabelen die in de nodelist moeten komen te staan. 
+# Dit is straks pas nodig. 
 
-# Vervang h_ door # 
+li_NodeVariabelen <- as.list(colnames(df_EdgelistSubset))
+
+# On with the script... 
+
+# De functies hieronder zorgen dat de variabele namen er goed uit komen te zien. 
+
 f_zetHashtagTerug <- function(x){ colnames(x) <- gsub("h_", "#", colnames(x)); x } 
-df_EdgelistAggr <- f_zetHashtagTerug(df_EdgelistAggr) 
+df_EdgelistSubset <- f_zetHashtagTerug(df_EdgelistSubset) 
 
 # Vervang z_ door niks
 f_haalz_Weg <- function(x){ colnames(x) <- gsub("z_", "", colnames(x)); x } 
-df_EdgelistAggr <- f_haalz_Weg(df_EdgelistAggr) 
+df_EdgelistSubset <- f_haalz_Weg(df_EdgelistSubset) 
 
 # Vervang p_ door niks
 f_haalp_Weg <- function(x){ colnames(x) <- gsub("p_", "", colnames(x)); x } 
-df_EdgelistAggr <- f_haalp_Weg(df_EdgelistAggr) 
+df_EdgelistSubset <- f_haalp_Weg(df_EdgelistSubset) 
 
 # Verander Source en Target. 
-names(df_EdgelistAggr)[names(df_EdgelistAggr) == "source"] <- "Source"
-names(df_EdgelistAggr)[names(df_EdgelistAggr) == "target"] <- "Target"
+names(df_EdgelistSubset)[names(df_EdgelistSubset) == "source"] <- "Source"
+names(df_EdgelistSubset)[names(df_EdgelistSubset) == "target"] <- "Target"
 
-# Voeg een eerste kolom in (Apple bug)
+# Voeg een eerste kolom in (Als Gephi draait op een Apple is het nodig dat de 
+# eerste kolom niet Source is. Daarom wordt er een kolom voorgezet)
 
-df_EdgelistAggr$Nr <- seq.int(nrow(df_EdgelistAggr))
+df_EdgelistSubset$Nr <- seq.int(nrow(df_EdgelistSubset))
+
+var_move <- "Target"
+df_EdgelistSubset <- df_EdgelistSubset[c(var_move, setdiff(names(df_EdgelistSubset), var_move))]
+
+var_move <- "Source"
+df_EdgelistSubset <- df_EdgelistSubset[c(var_move, setdiff(names(df_EdgelistSubset), var_move))]
 
 var_move <- "Nr"
-df_EdgelistAggr <- df_EdgelistAggr[c(var_move, setdiff(names(df_EdgelistAggr), var_move))]
+df_EdgelistSubset <- df_EdgelistSubset[c(var_move, setdiff(names(df_EdgelistSubset), var_move))]
 
 # Bewaren van de Edglist als .csv bestand. 
 
-write.csv2(df_EdgelistAggr,'Edgelist.csv', row.names=FALSE)
+write.csv2(df_EdgelistSubset,'Edgelist.csv', row.names=FALSE)
 
 # ------------------------------
 # 10. MAKEN VAN NODELIST
 # ------------------------------
 
-# Subset de variabelen die voor de nodelist nodig zijn. 
+# Toevoegen van andere gegevens: 
 
-li_nodeVariabelen <- c("source", "views", "influence", "followers")
+# Target eraf 
+li_NodeVariabelen <- li_NodeVariabelen[li_NodeVariabelen !="target"] 
+  
+# Weight eraf 
+li_NodeVariabelen <- li_NodeVariabelen[li_NodeVariabelen !="weight"] 
 
-# Subset de dataframe naar alleen source, views, influence en followers
-var_colsNodes <- match(li_nodeVariabelen, names(df_Edgelist))
-df_NodelistSubset <- df_Edgelist[,var_colsNodes] 
+# Periode eraf 
+li_NodeVariabelen <- li_NodeVariabelen[li_NodeVariabelen !="periode"] 
 
-# Aggregeer naar de combinatie source en target, tel weight en sommeer de overige variabelen. 
+# views followers en influence erbij. 
+li_NodeVariabelen <- c(li_NodeVariabelen, "views", "followers","influence")
 
+# Subset de dataframe naar alleen de variabelen die relevant zijn voor de nodes. 
+var_subset <- match(li_NodeVariabelen, names(df_cm_raw))
+df_NodelistSubset <- df_cm_raw[,var_subset]
+
+# Toevoegen AantalTweets
+df_NodelistSubset <- cbind(df_NodelistSubset, AantalTweets = 1)
+
+# Hernoem de variabelen. 
+
+# Zet # terug
+df_NodelistSubset <- f_zetHashtagTerug(df_NodelistSubset) 
+
+# Vervang z_ door niks
+df_NodelistSubset <- f_haalz_Weg(df_NodelistSubset) 
+
+# Vervang p_ door niks
+df_NodelistSubset <- f_haalp_Weg(df_NodelistSubset) 
+
+# Vervang NA in views met 0 
+df_NodelistSubset$views[is.na(df_NodelistSubset$views)] <- 0
+
+# Aggregeer naar source, tel AantalTweets en sommeer de overige variabelen. 
+
+# Sommeer alle kolommen 
 df_NodelistAggr <- aggregate(. ~ source, data = df_NodelistSubset, 
-                             FUN = mean)
+                             FUN = sum, na.action=na.omit)
 
-df_NLA_V <- aggregate(views ~ source, data = df_NodelistSubset, 
-                             FUN = sum)
-df_NLA_I <- aggregate(influence ~ source, data = df_NodelistSubset, 
+# Verwijder de kolommen waarover je het gemiddelde wilt berekenen 
+
+var_drops <- c("influence","followers")
+df_NodelistAggr <- df_NodelistAggr[ , !(names(df_NodelistAggr) %in% var_drops)]
+
+# Maak geagregeerde gemiddelden voor Influence en Followers
+
+df_NLA_Influence <- aggregate(influence ~ source, data = df_NodelistSubset, 
                       FUN = mean)
-df_NLA_F <- aggregate(followers ~ source, data = df_NodelistSubset, 
+df_NLA_Followers <- aggregate(followers ~ source, data = df_NodelistSubset, 
                       FUN = mean)
-df_NLA <- full_join(df_NLA_V, df_NLA_I, by="source")
-df_NLA <- full_join(df_NLA, df_NLA_F, by="source")
+
+#Rond af Influence op 1 digit, followers op 0). 
+df_NLA_Influence$influence <- round(df_NLA_Influence$influence, 1)
+df_NLA_Followers$followers <- round(df_NLA_Followers$followers, 0)
+
+# Voeg alles samen 
+
+df_NodelistAggr <- full_join(df_NodelistAggr, df_NLA_Influence, by="source")
+df_NodelistAggr <- full_join(df_NodelistAggr, df_NLA_Followers, by="source")
+
+# Verander de volgorde van de variabelen in de dataframe. 
+
+var_move <- "views"
+df_NodelistAggr <- df_NodelistAggr[c(var_move, setdiff(names(df_NodelistAggr), var_move))]
+
+var_move <- "influence"
+df_NodelistAggr <- df_NodelistAggr[c(var_move, setdiff(names(df_NodelistAggr), var_move))]
+
+var_move <- "followers"
+df_NodelistAggr <- df_NodelistAggr[c(var_move, setdiff(names(df_NodelistAggr), var_move))]
+
+var_move <- "AantalTweets"
+df_NodelistAggr <- df_NodelistAggr[c(var_move, setdiff(names(df_NodelistAggr), var_move))]
+
+var_move <- "source"
+df_NodelistAggr <- df_NodelistAggr[c(var_move, setdiff(names(df_NodelistAggr), var_move))]
 
 # Verander de kolomnaam van source naar id 
 names(df_NodelistAggr)[names(df_NodelistAggr) == "source"] <- "Id"
 
 # Bewaren van de Edglist als .csv bestand. 
+write.csv2(df_NodelistAggr,'Nodelist.csv', row.names=FALSE)
 
-write.csv(df_NodelistAggr,'Nodelist.csv')
+# Verwijder alle object behalve de objecten die in bewaar staan. 
+var_bewaar <- c("df_NodelistAggr", "df_EdgelistSubset")
+rm(list=setdiff(ls(), var_bewaar))
+
 
