@@ -1,4 +1,3 @@
-
 # ------------------------------
 # INTRODUCTIE
 # ------------------------------
@@ -64,8 +63,9 @@ var_workingDirectory <- "~/Documents/R/TwitterAnalysis/"
 
 # Om met de default te werken moet je het bestand dat je uit Coosto hebt gehaald
 # Coosto_messages.csv noemen en plaatsen in de subdirectory data van de working directory. 
+# Je kunt natuurlijk ook onderstaand pad aanpassen...
 
-var_data <- "dataGroningen/DatasetGroningen.csv"
+var_data <- "data/Coosto_messages.csv"
 
 # Wat voor separator gebruik je (default = ;)? 
 var_delimiter <- ";" 
@@ -76,7 +76,7 @@ var_aantalHashtags <- 20
 # Welke zoekwoorden wil je meenemen? 
 # Vul de zoekwoorden die je wilt gebruiken in. Zet elk woord tussen aanhalingstekens, 
 # gescheiden door komma's. Je kunt zelf kiezen hoeveel zoekwoorden je gebruikt. 
-li_z_woord <- c("innovatie", "cluster", "gemeente", "philips")
+li_z_woord <- c("gemeente", "opleiding", "Deventer", "overheid")
 
 # De binwidth staat nu standaard op 7 (7 dagen staat voor een week). Je kunt dit getal naar believe aanpassen. 
 # Maak je het groter, dan krijg je minder kolommen, maak je het kleiner, dan krijg je meer kolommen. 
@@ -103,11 +103,32 @@ setwd(var_workingDirectory)
 
 df_cm_raw <- read_delim(var_data, delim = var_delimiter)
 
-# Verwijder regels die geen inhoud hebben op "message text"
-df_cm_raw <- df_cm_raw[!is.na(df_cm_raw $'bericht tekst'),]
-
 # Alle bewerkingen hebben betrekking op de hele dataset. 
 # Dus als de dataset zowel tweets als retweets bevat, gaat het resultaat over het totaal.
+
+
+# In welke taal staan de variabelenamen in de dataset 
+# Wijzig onderstaande in "ENG" als je Engelse variabele namen hebt. 
+
+var_kolomnamen <- names(df_cm_raw)
+var_kolomnamen <- var_kolomnamen[1]
+
+var_taal <- ifelse(var_kolomnamen == 'zoekopdracht', "NL", "ENG")
+
+if(var_taal=="ENG"){
+    df_cm_raw <- rename(df_cm_raw, discussielengte = 'discussion length')
+    df_cm_raw$datum <- as_date(df_cm_raw$date)
+    df_cm_raw <- rename(df_cm_raw, auteur = author)
+    df_cm_raw <- rename(df_cm_raw, volgers = followers)
+    df_cm_raw <- rename(df_cm_raw, invloed = influence)
+    df_cm_raw <- rename(df_cm_raw, 'bericht tekst' = 'message text')
+    print("Engelse variabelenamen veranderd in Nederlandse")
+}else{
+    print("Taal is al Nederlands")
+}
+
+# Verwijder regels die geen inhoud hebben op "message text"
+df_cm_raw <- df_cm_raw[!is.na(df_cm_raw $'bericht tekst'),]
 
 # ------------------------------
 # 4. HASHTAGS EXTRAHEREN
@@ -125,6 +146,9 @@ df_cm_raw <- df_cm_raw[!is.na(df_cm_raw $'bericht tekst'),]
 
 # Maak een nieuwe variabele (tweet) met dezelfde inhoud als 'message text'.
 df_cm_raw$tweet = df_cm_raw$`bericht tekst` 
+
+# Vervang letters met accenten voor letters zonder accenten. 
+df_cm_raw$tweet <- stringi::stri_trans_general(df_cm_raw$tweet, "Latin-ASCII")
 
 # Vervang hoofdletters door kleine letters in tweet. 
 df_cm_raw$tweet <- tolower(df_cm_raw$tweet)
@@ -198,15 +222,13 @@ for (i in seq_along(li_z_woord)) {
 # 6. ACTIEVE PERIODE
 # ------------------------------
 
-# Kopier de originele variabele naar een nieuwe naam
-df_cm_raw$datumnl <- df_cm_raw$datum
-
-# Omzetten van datum-tijd naar alleen datum. 
-df_cm_raw$datum <- dmy_hm(df_cm_raw$datum)
-df_cm_raw$datum <- as_date(df_cm_raw$datum)
-
-# Gebruik deze als je de engelse versie hebt. 
-# df_cm_raw$datum <- as_date(df_cm_raw$date)
+if(var_taal=="NL"){
+    # Omzetten van datum-tijd naar alleen datum. 
+    df_cm_raw$datum <- dmy_hm(df_cm_raw$datum)
+    df_cm_raw$datum <- as_date(df_cm_raw$datum)
+    }else{
+    print("Datum is al gemaakt")
+}
 
 # Verloop van de twitterverkeer met ggplot 
 ggplot(df_cm_raw, aes(x = datum))+
@@ -336,8 +358,8 @@ df_Edgelist <- df_cm_raw %>%
 # Zet alle variabele namen in een lijst. 
 li_variabelen <- colnames(df_cm_raw)
 
-# Selecteer alleen de variabelen die beginnen met h_, z_ of p_
-li_variabelen <- grep("^h_|^z_|^p_", li_variabelen, value = TRUE)
+# Selecteer alleen de variabelen die beginnen met h_ of z_
+li_variabelen <- grep("^h_|^z_", li_variabelen, value = TRUE)
 
 # Bewaar alle woorden als lijst. 
 li_variabelen <- as.list(li_variabelen)
@@ -380,10 +402,6 @@ df_EdgelistSubset <- f_zetHashtagTerug(df_EdgelistSubset)
 # Vervang z_ door niks
 f_haalz_Weg <- function(x){ colnames(x) <- gsub("z_", "", colnames(x)); x } 
 df_EdgelistSubset <- f_haalz_Weg(df_EdgelistSubset) 
-
-# Vervang p_ door niks
-f_haalp_Weg <- function(x){ colnames(x) <- gsub("p_", "", colnames(x)); x } 
-df_EdgelistSubset <- f_haalp_Weg(df_EdgelistSubset) 
 
 # Verander Source en Target. 
 names(df_EdgelistSubset)[names(df_EdgelistSubset) == "source"] <- "Source"
@@ -443,9 +461,6 @@ df_NodelistSubset <- f_zetHashtagTerug(df_NodelistSubset)
 # Vervang z_ door niks
 df_NodelistSubset <- f_haalz_Weg(df_NodelistSubset) 
 
-# Vervang p_ door niks
-df_NodelistSubset <- f_haalp_Weg(df_NodelistSubset) 
-
 # Vervang NA in views met 0 
 df_NodelistSubset$views[is.na(df_NodelistSubset$views)] <- 0
 
@@ -502,6 +517,3 @@ write.csv(df_NodelistAggr,'Nodelist.csv', row.names=FALSE)
 # Verwijder alle object behalve de objecten die in bewaar staan (haal de hashtags weg). 
 #var_bewaar <- c("df_NodelistAggr", "df_EdgelistSubset")
 #rm(list=setdiff(ls(), var_bewaar))
-
-
- n
